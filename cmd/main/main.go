@@ -91,13 +91,13 @@ func main() {
 	go m.WatchForSQSMessages(ctx, commsChan, &wg)
 	go w.WatchForEventBridgeEvents(ctx, commsChan, &wg)
 	
-	log.Info().Msg("NTH-elbx has started successfully!")
+	log.Info().Msg("ELBX has started successfully!")
 	
 	// wait for context
 	<- ctx.Done()
 	stop() // stop receiving signals as soon as possible
 
 	// wait for goroutines to exit
-	log.Info().Msg("NTH-elbx is shutting down")
+	log.Info().Msg("ELBX is shutting down")
 	wg.Wait()
 }
