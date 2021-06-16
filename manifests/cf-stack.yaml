@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS CloudFormation stack for the elbx app. This stack creates listeners for ASG termination events and EC2 Spot Instance Interruption notices and sends events to an SQS queue that is monitored by an elbx pod running in the cluster.
+Parameters:
+  ASG1:
+    Description: Name of existing AWS Auto Scaling Group belonging to cluster (1)
+    Type: String
+  ASG2:
+    Description: Name of existing AWS Auto Scaling Group belonging to cluster (2)
+    Type: String
+Resources:
+  spotInterruptEventRule:
+    Type: AWS::Events::Rule
+    DependsOn:
+      - sqsQueuePolicy
+    Properties:
+      Description: Events rule for EC2 Spot Instance Interruption Notices
+      EventPattern:
+        source:
+          - aws.ec2
+        detail-type:
+          - EC2 Spot Instance Interruption Warning
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt sqsQueue.Arn
+          Id: !GetAtt sqsQueue.QueueName
+  sqsASGLifecycleHook1:
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties:
+      AutoScalingGroupName: !Ref ASG1
+      LifecycleTransition: "autoscaling:EC2_INSTANCE_TERMINATING"
+      HeartbeatTimeout: 120
+      DefaultResult: "CONTINUE"
+  sqsASGLifecycleHook2:
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties:
+      AutoScalingGroupName: !Ref ASG2
+      LifecycleTransition: "autoscaling:EC2_INSTANCE_TERMINATING"
+      HeartbeatTimeout: 120
+      DefaultResult: "CONTINUE"
+  sqsASGEventRule:
+    Type: AWS::Events::Rule
+    DependsOn:
+      - sqsASGLifecycleHook1
+      - sqsASGLifecycleHook2
+      - sqsQueue
+    Properties:
+      Description: Events rule for EC2 AutoScaling scale-out events
+      EventPattern:
+        source:
+          - aws.autoscaling
+        detail-type:
+          - EC2 Instance-terminate Lifecycle Action
+        detail:
+          LifecycleHookName:
+            - !Ref sqsASGLifecycleHook1
+            - !Ref sqsASGLifecycleHook2
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt sqsQueue.Arn
+          Id: !GetAtt sqsQueue.QueueName
+  sqsQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    DependsOn:
+      - sqsQueue
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+                - sqs.amazonaws.com
+            Action: sqs:SendMessage
+            Resource:
+              - !GetAtt sqsQueue.Arn
+      Queues:
+        - !Ref sqsQueue
+  sqsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref AWS::StackName
+      KmsMasterKeyId: "alias/aws/sqs"
+      MessageRetentionPeriod: 300
+      VisibilityTimeout: 30

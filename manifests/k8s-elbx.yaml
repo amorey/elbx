@@ -1,0 +1,68 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: elbx
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs:     ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: elbx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: elbx
+subjects:
+- kind: ServiceAccount
+  name: elbx
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: elbx
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elbx
+  namespace: kube-system
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: elbx
+  template:
+    metadata:
+      labels:
+        app: elbx
+    spec:
+      priorityClassName: "system-node-critical"
+      serviceAccountName: "elbx"
+      containers:
+        - name: elbx
+          image: logmonster/elbx:0.0.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              value: ""
+            - name: AWS_SECRET_ACCESS_KEY
+              value: ""
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+            - name: QUEUE_URL
+              value: ""
+          resources:
+            limits:
+              cpu: 100m
+              memory: 40Mi
+            requests:
+              cpu: 50m
+              memory: 20Mi
+---
