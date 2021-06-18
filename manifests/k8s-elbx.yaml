@@ -47,7 +47,7 @@ spec:
       serviceAccountName: "elbx"
       containers:
         - name: elbx
-          image: logmonster/elbx:0.0.1
+          image: logmonster/elbx:0.0.2
           imagePullPolicy: IfNotPresent
           env:
             - name: AWS_ACCESS_KEY_ID
