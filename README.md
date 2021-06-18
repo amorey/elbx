@@ -11,7 +11,7 @@ To use the `elbx` app, first you must create an AWS SQS queue and set up the eve
 To create a CloudFormation stack that listens for ASG Termination events and EC2 Spot Instance Interruption notices and sends events to an SQS queue that is monitored by the `elbx` app you can use the [manifests/cf-stack.yaml](manifests/cf-stack.yaml) file located in this project. Make sure to choose a name for your stack and to replace the `ASG1`, `ASG2` parameter values with the names of your cluster's Auto Scaling Groups:
 
 ```sh
-aws cloudformation create-stack \
+$ aws cloudformation create-stack \
   --stack-name REPLACEME \
   --template-body file://cf-stack.yaml \
   --parameters \
@@ -30,7 +30,7 @@ The `elbx` app requires the following AWS permissions:
 You can use the [manifests/iam-policy.yaml](manifests/iam-policy.yaml) file located in this project to create an IAM policy for a user or a role to use. Then you can download and modify the [manifests/k8s-elbx.yaml](manifests/k8s-elbx.yaml) kubernetes yaml file to add the AWS credentials you would like the `elbx` app to use. Once you have configured your yaml file you can deploy it to your kubernetes cluster:
 
 ```sh
-kubectl apply -f k8s-elbx.yaml
+$ kubectl apply -f k8s-elbx.yaml
 ```
 
 ### Configuration Options
@@ -48,7 +48,7 @@ kubectl apply -f k8s-elbx.yaml
 To run the app in development you can use the `go run` command:
 
 ```sh
-go run ./cmd/main \
+$ go run ./cmd/main \
   -debug \
   -queue-url="https://sqs.us-east-1.amazonaws.com/REPLACEME"
 ```
@@ -58,12 +58,12 @@ go run ./cmd/main \
 Build image:
 
 ```sh
-docker build -t elbx:latest -f build/package/Dockerfile .
+$ docker build -t elbx:latest -f build/package/Dockerfile .
 ```
 
 Start container (with debug enabled):
 ```sh
-docker run --rm elbx:latest \
+$ docker run --rm elbx:latest \
   -debug \
   -queue-url="https://sqs.us-east-1.amazonaws.com/REPLACEME"
 ```
