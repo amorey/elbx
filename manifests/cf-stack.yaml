@@ -23,25 +23,25 @@ Resources:
       Targets:
         - Arn: !GetAtt sqsQueue.Arn
           Id: !GetAtt sqsQueue.QueueName
-  sqsASGLifecycleHook1:
+  asgLifecycleHook1:
     Type: AWS::AutoScaling::LifecycleHook
     Properties:
       AutoScalingGroupName: !Ref ASG1
       LifecycleTransition: "autoscaling:EC2_INSTANCE_TERMINATING"
       HeartbeatTimeout: 120
       DefaultResult: "CONTINUE"
-  sqsASGLifecycleHook2:
+  asgLifecycleHook2:
     Type: AWS::AutoScaling::LifecycleHook
     Properties:
       AutoScalingGroupName: !Ref ASG2
       LifecycleTransition: "autoscaling:EC2_INSTANCE_TERMINATING"
       HeartbeatTimeout: 120
       DefaultResult: "CONTINUE"
-  sqsASGEventRule:
+  asgEventRule:
     Type: AWS::Events::Rule
     DependsOn:
-      - sqsASGLifecycleHook1
-      - sqsASGLifecycleHook2
+      - asgLifecycleHook1
+      - asgLifecycleHook2
       - sqsQueue
     Properties:
       Description: Events rule for EC2 AutoScaling scale-out events
@@ -52,8 +52,8 @@ Resources:
           - EC2 Instance-terminate Lifecycle Action
         detail:
           LifecycleHookName:
-            - !Ref sqsASGLifecycleHook1
-            - !Ref sqsASGLifecycleHook2
+            - !Ref asgLifecycleHook1
+            - !Ref asgLifecycleHook2
       State: ENABLED
       Targets:
         - Arn: !GetAtt sqsQueue.Arn
@@ -80,6 +80,5 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Ref AWS::StackName
-      KmsMasterKeyId: "alias/aws/sqs"
       MessageRetentionPeriod: 300
       VisibilityTimeout: 30
