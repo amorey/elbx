@@ -14,7 +14,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/amorey/elbx/pkg/worker"
-	"github.com/amorey/elbx/pkg/models"
 	"github.com/amorey/elbx/pkg/sqsmonitor"
 )
 
@@ -71,7 +70,7 @@ func main() {
 	})
 
 	// init comms channel
-	commsChan := make(chan models.EventBridgeEvent)
+	commsChan := make(chan string)
 	defer close(commsChan)
 
 	// init sqs monitor

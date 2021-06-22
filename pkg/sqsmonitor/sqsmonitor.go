@@ -15,13 +15,12 @@ import (
 	"github.com/amorey/elbx/pkg/models"
 )
 
-var queueName = "elbx-test"
-
 type Monitor struct {
 	queueUrl  *string
 	sqsClient *sqs.Client
 }
 
+// Execute SQS long-poll and return when timeout is reached or a message is found
 func (m *Monitor) receiveSQSMessages(ctx context.Context) (*[]types.Message, error) {
 	log.Debug().Msg("Starting SQS long-poll")
 
@@ -44,7 +43,8 @@ func (m *Monitor) receiveSQSMessages(ctx context.Context) (*[]types.Message, err
 	return &result.Messages, nil
 }
 
-func (m *Monitor) processSQSMessage(ctx context.Context, eventChan chan<- models.EventBridgeEvent, message *types.Message) error {
+// Process new SQS messages
+func (m *Monitor) processSQSMessage(ctx context.Context, commsChan chan<- string, message *types.Message) error {
 	log.Info().Msg(fmt.Sprintf("Processing SQS message (%s)", *message.MessageId))
 
 	// init event instance
@@ -54,8 +54,28 @@ func (m *Monitor) processSQSMessage(ctx context.Context, eventChan chan<- models
                 return err
         }
 
+	var instanceId string
+	
+	// extract instance-id
+	switch event.DetailType {
+	case "EC2 Instance-terminate Lifecycle Action":
+		detail := models.LifecycleDetail{}
+		err = json.Unmarshal([]byte(event.Detail), &detail)
+		if err != nil {
+			return err
+		}
+		instanceId = detail.EC2InstanceID
+	case "EC2 Spot Instance Interruption Warning":
+		detail := models.SpotInterruptionDetail{}
+		err = json.Unmarshal([]byte(event.Detail), &detail)
+		if err != nil {
+			return err
+		}
+		instanceId = detail.InstanceID
+	}
+	
 	// broadcast event
-	eventChan <- event
+	commsChan <- instanceId
 	
 	// delete message
 	_, err = m.sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
@@ -71,7 +91,8 @@ func (m *Monitor) processSQSMessage(ctx context.Context, eventChan chan<- models
 	return nil
 }
 
-func (m *Monitor) WatchForSQSMessages(ctx context.Context, eventChan chan<- models.EventBridgeEvent, wg *sync.WaitGroup) {
+// Continuously poll SQS for new messages until program is interrupted
+func (m *Monitor) WatchForSQSMessages(ctx context.Context, commsChan chan<- string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 Loop:
@@ -88,7 +109,7 @@ Loop:
 
 		// process messages
 		for _, message := range *messages {
-			err := m.processSQSMessage(ctx, eventChan, &message)
+			err := m.processSQSMessage(ctx, commsChan, &message)
 			if ctx.Err() != nil {
 				break Loop
 			} else if err != nil {

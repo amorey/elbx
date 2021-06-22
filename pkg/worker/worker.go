@@ -14,8 +14,6 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	
-	"github.com/amorey/elbx/pkg/models"
 )
 
 const (
@@ -28,15 +26,15 @@ type Worker struct {
 	ec2Client *ec2.Client
 }
 
-func (w *Worker) processEventBridgeEvent(ctx context.Context, event *models.EventBridgeEvent) error {
-	log.Debug().Msg(fmt.Sprintf("Processing EventBridge event (%s)", event.Detail.InstanceId))
+func (w *Worker) processEventBridgeEvent(ctx context.Context, instanceId string) error {
+	log.Debug().Msg(fmt.Sprintf("Processing event (%s)", instanceId))
 
 	// get instance details
 	params := &ec2.DescribeInstancesInput{
 		Filters: []ec2types.Filter{
 			{
 				Name: aws.String("instance-id"),
-				Values: []string{event.Detail.InstanceId},
+				Values: []string{instanceId},
 			},
 		},
 	}
@@ -44,8 +42,11 @@ func (w *Worker) processEventBridgeEvent(ctx context.Context, event *models.Even
 	response, err := w.ec2Client.DescribeInstances(ctx, params)
 	if err != nil {
 		return err
+	} else if len(response.Reservations) == 0 || len(response.Reservations[0].Instances) == 0 {
+		log.Error().Msg(fmt.Sprintf("No EC2 instance found: `%s`", instanceId))
+		return nil
 	}
-
+	
 	// get node name
 	nodeName := response.Reservations[0].Instances[0].PrivateDnsName
 
@@ -61,7 +62,7 @@ func (w *Worker) processEventBridgeEvent(ctx context.Context, event *models.Even
 	return nil
 }
 
-func (w *Worker) WatchForEventBridgeEvents(ctx context.Context, eventChan <-chan models.EventBridgeEvent, wg *sync.WaitGroup) {
+func (w *Worker) WatchForEventBridgeEvents(ctx context.Context, commsChan <-chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 Loop:
@@ -69,8 +70,8 @@ Loop:
                 select {
                 case <-ctx.Done():
                         break Loop
-		case event := <-eventChan:
-			err := w.processEventBridgeEvent(ctx, &event)
+		case instanceId := <-commsChan:
+			err := w.processEventBridgeEvent(ctx, instanceId)
 			if err != nil {
 				log.Error().Msg(err.Error())
 			}
